@@ -145,6 +145,7 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test:unit": "npm run compile && node test/unit/parser.test.js",
