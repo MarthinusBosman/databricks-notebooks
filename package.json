@@ -1,0 +1,163 @@
+{
+  "name": "databricks-notebook-local",
+  "displayName": "Databricks Notebooks as Jupyter",
+  "description": "Open Databricks source notebooks (.py files starting with '# Databricks notebook source') as Jupyter-style notebooks and run cells on a local Python kernel.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Notebooks",
+    "Data Science"
+  ],
+  "keywords": [
+    "databricks",
+    "notebook",
+    "jupyter",
+    "pyspark"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:python",
+    "onNotebook:databricks-notebook"
+  ],
+  "extensionDependencies": [],
+  "contributes": {
+    "notebooks": [
+      {
+        "type": "databricks-notebook",
+        "displayName": "Databricks Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.py"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "databricksNotebook.openAsNotebook",
+        "title": "Open as Databricks Notebook",
+        "category": "Databricks Notebook",
+        "icon": "$(notebook)"
+      },
+      {
+        "command": "databricksNotebook.openAsText",
+        "title": "Open as Python Text File",
+        "category": "Databricks Notebook",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "databricksNotebook.restartKernel",
+        "title": "Restart Kernel",
+        "category": "Databricks Notebook",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "databricksNotebook.newNotebook",
+        "title": "New Databricks Notebook",
+        "category": "Databricks Notebook"
+      },
+      {
+        "command": "databricksNotebook.showLog",
+        "title": "Show Kernel Log",
+        "category": "Databricks Notebook"
+      }
+    ],
+    "menus": {
+      "notebook/toolbar": [
+        {
+          "command": "databricksNotebook.restartKernel",
+          "when": "notebookType == databricks-notebook",
+          "group": "navigation/execute@5"
+        },
+        {
+          "command": "databricksNotebook.openAsText",
+          "when": "notebookType == databricks-notebook",
+          "group": "navigation@90"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "databricksNotebook.openAsNotebook",
+          "when": "resourceExtname == .py && !notebookEditorFocused && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "databricksNotebook.openAsNotebook",
+          "when": "resourceExtname == .py",
+          "group": "navigation@20"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "databricksNotebook.restartKernel",
+          "when": "notebookType == databricks-notebook"
+        },
+        {
+          "command": "databricksNotebook.openAsText",
+          "when": "notebookType == databricks-notebook"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Databricks Notebook",
+      "properties": {
+        "databricksNotebook.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open .py files that start with '# Databricks notebook source' as notebooks."
+        },
+        "databricksNotebook.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter for the kernel when the Python extension isn't installed. It needs ipykernel and jupyter_client."
+        },
+        "databricksNotebook.spark": {
+          "type": "string",
+          "enum": [
+            "none",
+            "local",
+            "databricks-connect"
+          ],
+          "enumDescriptions": [
+            "Don't create a `spark` session (%sql cells need one).",
+            "Create a local pyspark session (needs pyspark + Java).",
+            "Create a Databricks Connect session (needs databricks-connect and a configured profile; may start a cluster)."
+          ],
+          "default": "none",
+          "description": "Whether to create a `spark` session when the kernel starts."
+        },
+        "databricksNotebook.startupCode": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "multilineText",
+          "description": "Python code run silently each time a kernel starts."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test:unit": "npm run compile && node test/unit/parser.test.js",
+    "test:integration": "npm run compile && node test/runIntegration.js",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://example.invalid/databricks-notebook-local.git"
+  }
+}

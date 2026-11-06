@@ -1,0 +1,10 @@
+.testenv/**
+node_modules/**
+src/**
+test/**
+out/**/*.map
+**/__pycache__/**
+tsconfig.json
+*.vsix
+.gitignore
+.vscode-test/**
