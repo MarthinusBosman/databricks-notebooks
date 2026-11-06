@@ -38,7 +38,7 @@ function text(cell) {
 exports.run = async function () {
   const ws = process.env.DBX_TEST_WS;
   const nbUri = vscode.Uri.file(path.join(ws, 'sample_notebook.py'));
-  const ext = vscode.extensions.getExtension('local.databricks-notebook-local');
+  const ext = vscode.extensions.getExtension('marthinusbosman.databricks-notebooks');
   await ext.activate();
 
   await test('plain .py stays a text editor', async () => {
@@ -71,7 +71,7 @@ exports.run = async function () {
 
   await test('run all -> Jupyter-style outputs', async () => {
     if (!process.env.DBX_WITH_PYEXT)
-      await vscode.commands.executeCommand('notebook.selectKernel', { id: 'dbx-local-default', extension: 'local.databricks-notebook-local' });
+      await vscode.commands.executeCommand('notebook.selectKernel', { id: 'dbx-local-default', extension: 'marthinusbosman.databricks-notebooks' });
     else {
       // With the Python extension there's one controller per environment; pick the one for the test venv.
       const api = await vscode.extensions.getExtension('ms-python.python').activate();
@@ -80,7 +80,7 @@ exports.run = async function () {
       await sleep(3000);
       const id = 'dbx-local-' + env.id.replace(/[^\w.-]/g, '_').slice(-120);
       results.push('info python-ext env id ' + env.id + ' known=' + api.environments.known.length);
-      await vscode.commands.executeCommand('notebook.selectKernel', { id, extension: 'local.databricks-notebook-local' });
+      await vscode.commands.executeCommand('notebook.selectKernel', { id, extension: 'marthinusbosman.databricks-notebooks' });
     }
     await vscode.commands.executeCommand('notebook.execute', nb.uri);
     const code = nb.getCells().filter((c) => c.kind === vscode.NotebookCellKind.Code);

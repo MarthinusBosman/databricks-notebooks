@@ -1,9 +1,9 @@
 {
-  "name": "databricks-notebook-local",
-  "displayName": "Databricks Notebooks as Jupyter",
-  "description": "Open Databricks source notebooks (.py files starting with '# Databricks notebook source') as Jupyter-style notebooks and run cells on a local Python kernel.",
+  "name": "databricks-notebooks",
+  "displayName": "Databricks Notebooks",
+  "description": "Open Databricks source notebooks (.py files starting with '# Databricks notebook source') as Jupyter-style notebooks and run cells, %sql, %run and %sh on a local Python kernel.",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "marthinusbosman",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -155,11 +155,20 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^2.4.0",
-    "@vscode/vsce": "^3.0.0",
+    "@vscode/vsce": "^4.1.0",
     "typescript": "^5.4.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://example.invalid/databricks-notebook-local.git"
+    "url": "https://github.com/MarthinusBosman/databricks-notebooks.git"
+  },
+  "icon": "images/icon.png",
+  "bugs": {
+    "url": "https://github.com/MarthinusBosman/databricks-notebooks/issues"
+  },
+  "homepage": "https://github.com/MarthinusBosman/databricks-notebooks#readme",
+  "galleryBanner": {
+    "color": "#1E1E1E",
+    "theme": "dark"
   }
 }

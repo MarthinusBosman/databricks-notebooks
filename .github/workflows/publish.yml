@@ -1,0 +1,29 @@
+name: Publish
+
+# Push a tag like v0.1.0 (matching package.json "version") to publish to the VS Code Marketplace.
+# Auth is Marketplace Trusted Publishing (GitHub OIDC) - no PAT secret needed.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Check tag matches package.json version
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != package.json v$v"; exit 1; }
+      - run: npx vsce publish --oidc --no-dependencies

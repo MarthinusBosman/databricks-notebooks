@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Python deps for the kernel tests
+        run: |
+          python -m venv .testenv
+          .testenv/bin/pip install --quiet ipykernel jupyter_client pandas matplotlib pyspark
+      - run: npm ci
+      - run: npm run test:unit
+      - name: Kernel bridge tests
+        run: .testenv/bin/python test/driver_test.py
+      - name: Integration tests (real VS Code)
+        run: xvfb-run -a -s "-screen 0 1600x1200x24" npm run test:integration
+      - run: npx vsce package --no-dependencies
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: "*.vsix"
