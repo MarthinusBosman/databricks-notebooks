@@ -65,7 +65,7 @@ exports.run = async function () {
 
   await test('cells parsed', async () => {
     const kinds = nb.getCells().map((c) => (c.kind === vscode.NotebookCellKind.Markup ? 'md' : c.document.languageId));
-    assert.deepStrictEqual(kinds, ['md', 'python', 'python', 'python', 'python', 'shellscript', 'python', 'python']);
+    assert.deepStrictEqual(kinds, ['md', 'python', 'python', 'python', 'python', 'shellscript', 'python', 'sql', 'python']);
     assert.strictEqual(nb.cellAt(3).metadata.databricks.title, 'A plot');
   });
 
@@ -84,7 +84,9 @@ exports.run = async function () {
     }
     await vscode.commands.executeCommand('notebook.execute', nb.uri);
     const code = nb.getCells().filter((c) => c.kind === vscode.NotebookCellKind.Code);
-    await until(() => code.every((c) => c.executionSummary && c.executionSummary.success !== undefined), 180000, 'all cells executed');
+    const doneOk = (c) => c.executionSummary && c.executionSummary.success !== undefined;
+    await until(() => doneOk(code[code.length - 1]) || code.some((c) => c.executionSummary && c.executionSummary.success === false), 240000, 'all cells executed');
+    await sleep(500);
     const c = nb.getCells();
     assert.strictEqual(c[1].executionSummary.success, true, 'run cell ok: ' + text(c[1]));
     assert.ok(text(c[2]).includes('helper says 42'), text(c[2]));
@@ -92,16 +94,26 @@ exports.run = async function () {
     assert.ok(mimes(c[4]).some((m) => m.includes('image/png')), 'plot png: ' + mimes(c[4]));
     assert.ok(text(c[5]).includes('hello from sh'), text(c[5]));
     assert.strictEqual(text(c[6]).trim(), 'progress 2', 'carriage returns: ' + JSON.stringify(text(c[6])));
-    assert.strictEqual(c[7].executionSummary.success, false);
-    assert.ok(mimes(c[7])[0].includes('application/vnd.code.notebook.error'), mimes(c[7]));
-    assert.ok(text(c[7]).includes('boom'));
+    if (process.env.JAVA_HOME) {
+      assert.strictEqual(c[7].executionSummary.success, true, '%sql: ' + text(c[7]));
+      assert.ok(mimes(c[7]).some((m) => m.startsWith('text/html')), '%sql table: ' + mimes(c[7]));
+      assert.ok(text(c[7]).includes('<table') && text(c[7]).includes('42'), text(c[7]));
+      results.push('info %sql ran on local spark');
+      assert.strictEqual(c[8].executionSummary.success, false);
+      assert.ok(mimes(c[8])[0].includes('application/vnd.code.notebook.error'), mimes(c[8]));
+      assert.ok(text(c[8]).includes('boom'));
+    } else {
+      assert.strictEqual(c[7].executionSummary.success, false);
+      assert.ok(text(c[7]).includes('no `spark` session'), text(c[7]));
+      results.push('info no JAVA_HOME: checked the %sql no-spark error instead');
+    }
     assert.ok(c[2].executionSummary.executionOrder >= 1, 'execution order');
     assert.ok(!nb.isDirty, 'running cells should not dirty the file');
     if (process.env.DBX_SCREENSHOT) {
       await vscode.window.showNotebookDocument(nb);
       await vscode.commands.executeCommand('workbench.action.closeSidebar');
       await vscode.commands.executeCommand('workbench.action.closePanel');
-      for (const [i, cellIdx] of [[1, 0], [2, 4], [3, 7]]) {
+      for (const [i, cellIdx] of [[1, 0], [2, 4], [3, 7], [4, 8]]) {
         vscode.window.activeNotebookEditor.revealRange(new vscode.NotebookRange(cellIdx, cellIdx + 1), vscode.NotebookEditorRevealType.AtTop);
         await sleep(2500);
         require('child_process').execSync(

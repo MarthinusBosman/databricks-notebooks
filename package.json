@@ -121,17 +121,19 @@
         "databricksNotebook.spark": {
           "type": "string",
           "enum": [
+            "auto",
             "none",
             "local",
             "databricks-connect"
           ],
           "enumDescriptions": [
-            "Don't create a `spark` session (%sql cells need one).",
+            "Start a local pyspark session the first time a %sql cell runs, if pyspark is installed.",
+            "Never create a `spark` session automatically.",
             "Create a local pyspark session (needs pyspark + Java).",
             "Create a Databricks Connect session (needs databricks-connect and a configured profile; may start a cluster)."
           ],
-          "default": "none",
-          "description": "Whether to create a `spark` session when the kernel starts."
+          "default": "auto",
+          "description": "How the `spark` session used by %sql cells is created. 'local' / 'databricks-connect' create it when the kernel starts."
         },
         "databricksNotebook.startupCode": {
           "type": "string",

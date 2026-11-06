@@ -15,7 +15,7 @@ Opens Databricks source notebooks — `.py` files whose first line is `# Databri
 - `%run ./other_notebook` runs that notebook's cells in the same namespace.
 - `%sh` runs bash (PowerShell on Windows). `%pip install …` works as usual.
 - `display(df)` works for pandas and for Spark DataFrames (it shows the first 1000 rows). `displayHTML(html)` also works.
-- `%sql` runs through `spark.sql(...)`. You need a `spark` session for this: set `databricksNotebook.spark` to `local` (pyspark) or `databricks-connect`, or create `spark` yourself. The last result is stored in `_sqldf`.
+- `%sql` cells run as `_sqldf = spark.sql(...)` followed by `display(_sqldf)`. If a cell has several statements, each one runs and only the last result is shown. If pyspark is installed (it needs Java 17+), the first time `spark` is used a local session starts automatically. Set `databricksNotebook.spark` to `databricks-connect` to use a real cluster instead.
 - `dbutils` is a local stand-in:
   - `widgets.text/dropdown/get` keep values in memory.
   - `fs.ls/head/put/cp/mv/rm/mkdirs` work on local paths.
@@ -37,7 +37,7 @@ The selected Python needs `ipykernel` and `jupyter_client`:
 ## Settings
 - `databricksNotebook.autoOpen` (default `true`): open Databricks `.py` files as notebooks automatically.
 - `databricksNotebook.pythonPath`: the interpreter to use when the Python extension isn't installed.
-- `databricksNotebook.spark`: `none` / `local` / `databricks-connect`.
+- `databricksNotebook.spark`: `auto` (the default: start a local session on first use) / `none` / `local` / `databricks-connect`.
 - `databricksNotebook.startupCode`: Python code that runs silently every time a kernel starts.
 
 ## Develop

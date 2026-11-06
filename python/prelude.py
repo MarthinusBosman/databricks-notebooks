@@ -8,6 +8,9 @@ def __dbx_setup():
     from IPython.display import HTML, Markdown
     from IPython.display import display as _ipy_display
 
+    import warnings
+    # pyspark nags about pandas 3 on every first toPandas(); display() handles both fine.
+    warnings.filterwarnings("ignore", message="PySpark does not yet fully support pandas")
     ip = get_ipython()
     ns = ip.user_ns
 
@@ -27,6 +30,7 @@ def __dbx_setup():
         # ---------------- start-up -----------------
         def init(self, nb_path, spark_mode):
             self.nb_path = nb_path or ""
+            self.spark_mode = spark_mode or "auto"
             if nb_path:
                 self.nb_dir = os.path.dirname(nb_path)
             ns.setdefault("__file__", nb_path)
@@ -45,8 +49,10 @@ def __dbx_setup():
                         ns["spark"] = SparkSession.builder.master("local[*]").appName("dbx-notebook").getOrCreate()
                 except Exception as e:  # surfaced in the extension's output channel
                     print("spark init (%s) failed: %s" % (spark_mode, e))
+            if self.spark_mode == "auto" and "spark" not in ns:
+                ns["spark"] = _LazySpark()
             ns.setdefault("dbutils", _DbUtils())
-            if "spark" in ns and "sc" not in ns:
+            if "spark" in ns and "sc" not in ns and not isinstance(ns["spark"], _LazySpark):
                 try:
                     ns["sc"] = ns["spark"].sparkContext
                 except Exception:
@@ -54,9 +60,15 @@ def __dbx_setup():
 
         # ---------------- display -----------------
         def display(self, *objs, **kw):
+            __tracebackhide__ = True  # noqa: F841
             for obj in objs:
                 if _is_spark_df(obj):
-                    pdf = obj.limit(self.display_limit).toPandas()
+                    if not len(obj.columns):  # e.g. result of CREATE / INSERT
+                        continue
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        pdf = obj.limit(self.display_limit).toPandas()
                     _ipy_display(pdf)
                 else:
                     _ipy_display(obj, **kw)
@@ -65,20 +77,51 @@ def __dbx_setup():
             _ipy_display(Markdown(text))
 
         # ---------------- %sql -----------------
-        def run_sql(self, query):
-            spark = ns.get("spark")
-            if spark is None:
+        spark_mode = "auto"
+
+        def make_local_spark(self):
+            __tracebackhide__ = True  # noqa: F841 (IPython hides this frame)
+            try:
+                import pyspark
+                from pyspark.sql import SparkSession
+            except ImportError:
                 raise RuntimeError(
-                    "%sql needs a `spark` session. Set 'databricksNotebook.spark' to 'local' (pyspark) or "
-                    "'databricks-connect', or create `spark` yourself in a Python cell.")
-            stmts = [s.strip() for s in _split_sql(query) if s.strip()]
-            df = None
-            for s in stmts:
-                df = spark.sql(s)
-            if df is not None:
-                ns["_sqldf"] = df
-                if len(df.columns):
-                    self.display(df)
+                    "There is no `spark` session. `pip install pyspark` (needs Java 17+) for an automatic local "
+                    "session, set 'databricksNotebook.spark' to 'databricks-connect', or create `spark` yourself."
+                ) from None
+            sys.stderr.write("Starting a local Spark session (pyspark %s)...\n" % pyspark.__version__)
+            sys.stderr.flush()
+            # The JVM inherits fds 1/2 when it starts; point them at devnull meanwhile so its log4j
+            # start-up chatter doesn't land in the cell output (errors still arrive as Python exceptions).
+            saved = []
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                for fd in (1, 2):
+                    saved.append((fd, os.dup(fd)))
+                    os.dup2(devnull, fd)
+                os.close(devnull)
+            except OSError:
+                pass
+            try:
+                spark = (SparkSession.builder.master("local[*]").appName("dbx-notebook")
+                         .config("spark.ui.showConsoleProgress", "false").getOrCreate())
+            except Exception as e:
+                hint = ""
+                if "JAVA_GATEWAY" in str(e) or "JAVA_HOME" in str(e):
+                    hint = " Local Spark needs Java 17+ installed (set JAVA_HOME or put java on PATH)."
+                raise RuntimeError("Couldn't start a local Spark session: %s.%s" % (str(e).rstrip("."), hint)) from None
+            finally:
+                for fd, dup in saved:
+                    os.dup2(dup, fd)
+                    os.close(dup)
+            spark.sparkContext.setLogLevel("ERROR")
+            try:
+                import pyarrow  # noqa: F401
+            except ImportError:  # avoid pyspark's arrow fallback warnings on every display()
+                spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
+            return spark
 
         # ---------------- %sh -----------------
         def run_sh(self, script):
@@ -152,31 +195,28 @@ def __dbx_setup():
             finally:
                 self.nb_dir = prev_dir
 
-    def _split_sql(q):
-        out, cur, quote = [], [], None
-        i = 0
-        while i < len(q):
-            ch = q[i]
-            if quote:
-                cur.append(ch)
-                if ch == quote:
-                    quote = None
-            elif ch in ("'", '"', "`"):
-                quote = ch
-                cur.append(ch)
-            elif ch == "-" and q[i:i + 2] == "--":
-                j = q.find("\n", i)
-                j = len(q) if j < 0 else j
-                i = j
-                continue
-            elif ch == ";":
-                out.append("".join(cur))
-                cur = []
-            else:
-                cur.append(ch)
-            i += 1
-        out.append("".join(cur))
-        return out
+    class _LazySpark:
+        """`spark` placeholder: starts a local session the first time it's used (like Databricks, where
+        `spark` always exists), then replaces itself in the namespace."""
+        _real = None
+
+        def _get(self):
+            __tracebackhide__ = True  # noqa: F841
+            if _LazySpark._real is None:
+                _LazySpark._real = ns["__dbx__"].make_local_spark()
+                if ns.get("spark") is self:
+                    ns["spark"] = _LazySpark._real
+                ns.setdefault("sc", _LazySpark._real.sparkContext)
+            return _LazySpark._real
+
+        def __getattr__(self, name):
+            __tracebackhide__ = True  # noqa: F841
+            if name.startswith("__"):
+                raise AttributeError(name)
+            return getattr(self._get(), name)
+
+        def __repr__(self):
+            return "<spark: a local session starts on first use>" if _LazySpark._real is None else repr(_LazySpark._real)
 
     def _translate(code, language):
         first, _, rest = code.lstrip("\n").partition("\n")
@@ -188,7 +228,7 @@ def __dbx_setup():
             if magic == "run":
                 return "__dbx__.run_notebook(%r)" % arg.strip()
             if magic == "sql":
-                return "__dbx__.run_sql(%r)" % body
+                return _dbx_sql_to_source(body)
             if magic == "sh":
                 return "__dbx__.run_sh(%r)" % body
             if magic == "python":

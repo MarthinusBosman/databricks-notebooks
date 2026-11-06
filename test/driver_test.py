@@ -103,8 +103,43 @@ d, o = run("%run ./helpers")
 d2, o2 = run("HELPER, twice(4)")
 check("%run", d["status"] == "ok" and "(42, 8)" in o2[0]["content"]["data"]["text/plain"], (o, o2))
 
-d, o = run("select 1", "sql")
-check("%sql without spark -> clear error", d["status"] == "error" and "spark" in o[-1]["content"]["evalue"], o)
+try:
+    import pyspark  # noqa: F401
+    HAVE_SPARK = bool(os.environ.get("JAVA_HOME"))
+except ImportError:
+    HAVE_SPARK = False
+if HAVE_SPARK:
+    d, o = run("select 1 as a, 'x' as b", "sql", timeout=180)
+    html = [m for m in o if m["msg_type"] == "display_data" and "text/html" in m["content"]["data"]]
+    check("%sql -> auto local spark + display(_sqldf) as table", d["status"] == "ok" and html and "<table" in html[0]["content"]["data"]["text/html"], o)
+    noise = [m["content"].get("text", "") for m in o if m["msg_type"] == "stream"]
+    check("spark start-up is quiet (one info line)", len("".join(noise).strip().splitlines()) <= 1, noise)
+    d, o = run("-- comment; with semicolon\ncreate or replace temp view v as select 2 as n;\nselect n * 10 as m from v", "sql", timeout=120)
+    html = [m for m in o if m["msg_type"] == "display_data"]
+    check("%sql multi-statement shows last result", d["status"] == "ok" and len(html) == 1 and "20" in html[0]["content"]["data"]["text/html"], o)
+    d, o = run("type(_sqldf).__name__, _sqldf.collect()[0].m")
+    check("_sqldf is the spark DataFrame", "('DataFrame', 20)" in o[0]["content"]["data"]["text/plain"], o)
+    d, o = run("%sql select 'inline' as s")
+    check("%sql magic typed in python cell", d["status"] == "ok" and any(m["msg_type"] == "display_data" for m in o), o)
+    d, o = run("create temp view v2 as select 1 as z", "sql")
+    check("DDL shows no table", d["status"] == "ok" and not [m for m in o if m["msg_type"] == "display_data"], o)
+    d, o = run("select * from no_such_table", "sql")
+    check("bad SQL -> error output", d["status"] == "error" and o[-1]["msg_type"] == "error", o[-1:])
+    import re
+    tb = re.sub(r"\x1b\[[0-9;]*m", "", "\n".join(o[-1]["content"]["traceback"]))
+    check("bad SQL traceback shows the SQL line, not helper internals", "----> 1 _sqldf = spark.sql('select * from no_such_table')" in tb and "__dbx__" not in tb and "_LazySpark" not in tb, tb)
+    if os.environ.get("SHOW_TB"):
+        import re
+        print(re.sub(r"\x1b\[[0-9;]*m", "", tb))
+    d, o = run("type(spark).__name__")
+    check("spark replaced by the real session", "'SparkSession'" in o[0]["content"]["data"]["text/plain"], o)
+else:
+    d, o = run("select 1", "sql")
+    check("%sql without spark -> clear error", d["status"] == "error" and ("pip install pyspark" in o[-1]["content"]["evalue"] or "Java 17+" in o[-1]["content"]["evalue"]), o[-1:])
+    tb = "\n".join(o[-1]["content"]["traceback"])
+    import re as _re
+    tb = _re.sub(r"\x1b\[[0-9;]*m", "", tb)
+    check("no-spark error is short", len(tb) < 1500 and "java_gateway" not in tb, tb)
 
 d, o = run("# Title\nsome *md*", "markdown")
 check("markdown via kernel", "text/markdown" in o[0]["content"]["data"], o)

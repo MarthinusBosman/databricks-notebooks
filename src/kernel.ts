@@ -212,7 +212,7 @@ export class KernelSession {
           PYTHONIOENCODING: 'utf-8',
           DBX_NOTEBOOK_PATH: this.nbPath,
           DBX_NOTEBOOK_CWD: cwd ?? '',
-          DBX_SPARK_MODE: cfg.get<string>('spark', 'none'),
+          DBX_SPARK_MODE: cfg.get<string>('spark', 'auto'),
           DBX_STARTUP_CODE: cfg.get<string>('startupCode', ''),
         },
         stdio: ['pipe', 'pipe', 'pipe'],

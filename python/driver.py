@@ -26,6 +26,8 @@ sys.stdout = sys.stderr
 _lock = threading.Lock()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from dbx_sql import _dbx_sql_to_source  # noqa: E402
 
 
 def send(obj):
@@ -66,7 +68,7 @@ def translate(code, language):
     if language == "python":
         return code
     if language == "sql":
-        return "__dbx__.run_sql(%r)" % code
+        return _dbx_sql_to_source(code)
     if language in ("shellscript", "sh", "bash", "shell"):
         return "__dbx__.run_sh(%r)" % code
     if language == "markdown":
@@ -194,11 +196,13 @@ def main():
 
     runner = Runner(km, kc)
     # Databricks-flavoured helpers (display, dbutils stub, %run, %sql ...)
-    with open(os.path.join(HERE, "prelude.py"), encoding="utf-8") as f:
-        prelude = f.read()
+    prelude = ""
+    for name in ("dbx_sql.py", "prelude.py"):
+        with open(os.path.join(HERE, name), encoding="utf-8") as f:
+            prelude += f.read() + "\n"
     runner.submit({"id": "__prelude__", "raw": True, "silent": True, "code": prelude})
     nb_path = os.environ.get("DBX_NOTEBOOK_PATH", "")
-    spark_mode = os.environ.get("DBX_SPARK_MODE", "none")
+    spark_mode = os.environ.get("DBX_SPARK_MODE", "auto")
     runner.submit({"id": "__init__", "raw": True, "silent": True,
                    "code": "__dbx__.init(%r, %r)" % (nb_path, spark_mode)})
     startup = os.environ.get("DBX_STARTUP_CODE", "")

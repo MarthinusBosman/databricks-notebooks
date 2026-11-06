@@ -39,4 +39,9 @@ print()
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC SELECT 'spark' AS engine, 42 AS answer
+
+# COMMAND ----------
+
 raise ValueError("boom")
